@@ -24,6 +24,7 @@
     'depends': ['account_accountant', 'account_check_printing', 'account', 'l10n_us_check_printing'],
     'data': [
         'views/report_invoice.xml',
+        'views/report_payment_receipt_templates.xml',
         'views/assets.xml',
     ],
 }

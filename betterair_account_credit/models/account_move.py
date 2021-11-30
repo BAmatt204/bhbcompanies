@@ -7,6 +7,7 @@ from odoo.tools.misc import formatLang, format_date
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    # Modified to include credit note information on payment reciept and account.move report
     def _get_reconciled_invoices_partials(self):
         ''' Helper to retrieve the details about reconciled invoices.
         :return A list of tuple (partial, amount, invoice_line).
@@ -22,6 +23,8 @@ class AccountMove(models.Model):
         for partial in pay_term_lines.matched_credit_ids:
             invoice_partials.append((partial, partial.debit_amount_currency, partial.credit_move_id))
             reconciles.append(partial.full_reconcile_id.id)
+        
+        # Adding credit note account move lines to list of records to be returned
         if len(reconciles) > 0:
             refunds = self.env['account.move.line'].search([('full_reconcile_id', 'in', reconciles)]).filtered(lambda rec: rec.move_id.move_type == 'in_refund')
             for partial in refunds.matched_credit_ids:
@@ -29,6 +32,7 @@ class AccountMove(models.Model):
                 reconciles.append(partial.full_reconcile_id.id)
         return invoice_partials
 
+    # Modified to include credit note information on bill report
     def _get_reconciled_info_JSON_values(self):
         self.ensure_one()
 
