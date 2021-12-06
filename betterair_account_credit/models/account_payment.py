@@ -149,8 +149,8 @@ class AccountPayment(models.Model):
         for res in query_res:
             pay = self.browse(res['id'])
             if res['move_type'] in self.env['account.move'].get_sale_types(True):
-                pay.reconciled_invoices_ids += self.env['account.move'].browse(res.get('invoice_ids', []))
-                pay.reconciled_invoices_count = len(res.get('invoice_ids', []))
+                pay.reconciled_invoice_ids += self.env['account.move'].search(['|', ('id', 'in', res.get('invoice_ids', [])), '&', '&', ('move_type', '=', 'out_refund'), ('reversed_entry_id', 'in', res.get('invoice_ids', [])), ('state', '=', 'posted')])
+                pay.reconciled_invoices_count = len(pay.reconciled_invoice_ids)
             else:
                 # Instead of browse, search through moves to get specific invoices and associated credit notes
                 pay.reconciled_bill_ids += self.env['account.move'].search(['|', ('id', 'in', res.get('invoice_ids', [])), '&', '&', ('move_type', '=', 'in_refund'), ('reversed_entry_id', 'in', res.get('invoice_ids', [])), ('state', '=', 'posted')])
