@@ -22,13 +22,13 @@
     'license': 'OEEL-1',
     'version': '0.1',
     'depends': ['account_accountant', 'account_check_printing', 'account', 'l10n_us_check_printing'],
-    # 'data': [
-    #     'views/report_invoice.xml',
-    #     'views/report_payment_receipt_templates.xml',
-    # ],
-    # 'assets': [
-    #     'web.report_assets_pdf': [
-    #         "betterair_account_credit/static/src/scss/report_invoice.scss",
-    #     ],
-    # ],
+    'data': [
+        'views/report_invoice.xml',
+        'views/report_payment_receipt_templates.xml',
+    ],
+    'assets': {
+        'web.report_assets_pdf': [
+            "betterair_account_credit/static/src/scss/report_invoice.scss",
+        ],
+    },
 }
