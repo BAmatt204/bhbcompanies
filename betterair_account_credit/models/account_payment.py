@@ -3,9 +3,11 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError, RedirectWarning
 from odoo.tools.misc import formatLang, format_date
+import logging
 
 INV_LINES_PER_STUB = 9
 
+_logger = logging.getLogger(__name__)
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
@@ -16,7 +18,7 @@ class AccountPayment(models.Model):
         """
         self.ensure_one()
 
-        def prepare_vals(invoice, partials):
+        def prepare_vals(invoice, partials, amount=0):
             number = ' - '.join([invoice.name, invoice.ref] if invoice.ref else [invoice.name])
 
             if invoice.is_outbound():
@@ -30,11 +32,12 @@ class AccountPayment(models.Model):
                 amount_residual_str = '-'
             else:
                 amount_residual_str = formatLang(self.env, invoice_sign * invoice.amount_residual, currency_obj=invoice.currency_id)
-
+            if amount == 0:
+                amount = invoice.amount_total
             return {
                 'due_date': format_date(self.env, invoice.invoice_date_due),
                 'number': number,
-                'amount_total': formatLang(self.env, invoice_sign * invoice.amount_total, currency_obj=invoice.currency_id),
+                'amount_total': formatLang(self.env, invoice_sign * amount, currency_obj=invoice.currency_id),
                 'amount_residual': amount_residual_str,
                 'amount_paid': formatLang(self.env, invoice_sign * sum(partials.mapped(partial_field)), currency_obj=self.currency_id),
                 'currency': invoice.currency_id,
@@ -44,7 +47,13 @@ class AccountPayment(models.Model):
         term_lines = self.line_ids.filtered(lambda line: line.account_id.internal_type in ('receivable', 'payable'))
         invoices = (term_lines.matched_debit_ids.debit_move_id.move_id + term_lines.matched_credit_ids.credit_move_id.move_id)\
             .filtered(lambda x: x.is_outbound())
-        invoices += invoices.filtered(lambda inv: inv.reversal_move_id).reversal_move_id
+        credits = self.env['account.move']
+        amount_map = {}
+        for inv in invoices:
+            for partial, amount, counterpart_line in inv._get_reconciled_invoices_partials():
+                credits += counterpart_line.move_id
+                amount_map[counterpart_line.move_id] = amount
+        invoices += credits
         invoices = invoices.sorted(lambda x: x.invoice_date_due or x.date)
 
         # Group partials by invoices.
@@ -75,9 +84,10 @@ class AccountPayment(models.Model):
             if 'in_refund' in invoices.mapped('move_type'):
                 # Add Credit Notes to stub_lines
                 stub_lines += [{'header': True, 'name': "Credit Summary"}]
-                stub_lines += [prepare_vals(invoice, partials)
-                            for invoice, partials in invoice_map.items()
-                            if invoice.move_type == 'in_refund' and invoice.state == 'posted']
+                for invoice, partials in invoice_map.items():
+                    if invoice.move_type == 'in_refund' and invoice.state == 'posted':
+                        amount = amount_map[invoice]
+                        stub_lines += [prepare_vals(invoice, partials, amount)]
 
         # Crop the stub lines or split them on multiple pages
         if not self.company_id.account_check_printing_multi_stub:
@@ -107,6 +117,7 @@ class AccountPayment(models.Model):
         if not stored_payments:
             self.reconciled_invoice_ids = False
             self.reconciled_invoices_count = 0
+            self.reconciled_invoices_type = ''
             self.reconciled_bill_ids = False
             self.reconciled_bills_count = 0
             self.reconciled_statement_ids = False
@@ -149,11 +160,24 @@ class AccountPayment(models.Model):
         for res in query_res:
             pay = self.browse(res['id'])
             if res['move_type'] in self.env['account.move'].get_sale_types(True):
-                pay.reconciled_invoice_ids += self.env['account.move'].search(['|', ('id', 'in', res.get('invoice_ids', [])), '&', '&', ('move_type', '=', 'out_refund'), ('reversed_entry_id', 'in', res.get('invoice_ids', [])), ('state', '=', 'posted')])
+                invoices = self.env['account.move']
+                # Instead of browse, search through moves to get specific invoices and associated credit notes
+                pay.reconciled_invoice_ids += self.env['account.move'].browse(res.get('invoice_ids', []))
+                for invoice in pay.reconciled_invoice_ids:
+                    for partial, amount, counterpart_line in invoice._get_reconciled_invoices_partials():
+                        if counterpart_line.move_id and counterpart_line.move_id.move_type == 'out_refund':
+                            invoices += counterpart_line.move_id
+                pay.reconciled_invoice_ids += invoices 
                 pay.reconciled_invoices_count = len(pay.reconciled_invoice_ids)
             else:
+                bills = self.env['account.move']
                 # Instead of browse, search through moves to get specific invoices and associated credit notes
-                pay.reconciled_bill_ids += self.env['account.move'].search(['|', ('id', 'in', res.get('invoice_ids', [])), '&', '&', ('move_type', '=', 'in_refund'), ('reversed_entry_id', 'in', res.get('invoice_ids', [])), ('state', '=', 'posted')])
+                pay.reconciled_bill_ids += self.env['account.move'].browse(res.get('invoice_ids', []))
+                for bill in pay.reconciled_bill_ids:
+                    for partial, amount, counterpart_line in bill._get_reconciled_invoices_partials():
+                        if counterpart_line.move_id and counterpart_line.move_id.move_type == 'in_refund':
+                            bills += counterpart_line.move_id
+                pay.reconciled_bill_ids += bills 
                 pay.reconciled_bills_count = len(pay.reconciled_bill_ids)
 
         self._cr.execute('''
@@ -173,7 +197,7 @@ class AccountPayment(models.Model):
                 part.debit_move_id = counterpart_line.id
                 OR
                 part.credit_move_id = counterpart_line.id
-            WHERE (account.id = journal.payment_debit_account_id OR account.id = journal.payment_credit_account_id)
+            WHERE account.id = payment.outstanding_account_id
                 AND payment.id IN %(payment_ids)s
                 AND line.id != counterpart_line.id
                 AND counterpart_line.statement_id IS NOT NULL
@@ -187,3 +211,7 @@ class AccountPayment(models.Model):
             statement_ids = query_res.get(pay.id, [])
             pay.reconciled_statement_ids = [(6, 0, statement_ids)]
             pay.reconciled_statements_count = len(statement_ids)
+            if len(pay.reconciled_invoice_ids.mapped('move_type')) == 1 and pay.reconciled_invoice_ids[0].move_type == 'out_refund':
+                pay.reconciled_invoices_type = 'credit_note'
+            else:
+                pay.reconciled_invoices_type = 'invoice'

@@ -6,6 +6,7 @@ from odoo.tools.misc import formatLang, format_date
 
 import logging
 
+_logger = logging.getLogger(__name__)
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -24,20 +25,15 @@ class AccountMove(models.Model):
 
         for partial in pay_term_lines.matched_debit_ids:
             invoice_partials.append((partial, partial.credit_amount_currency, partial.debit_move_id))
+            if self.move_type == 'entry':
+                invoice_partials += partial.debit_move_id.move_id._get_reconciled_invoices_partials()
             credits.append(partial.full_reconcile_id.id)
         for partial in pay_term_lines.matched_credit_ids:
             invoice_partials.append((partial, partial.debit_amount_currency, partial.credit_move_id))
+            if self.move_type == 'entry':
+                invoice_partials += partial.credit_move_id.move_id._get_reconciled_invoices_partials()
             refunds.append(partial.full_reconcile_id.id)
-        
-        # Adding credit note account move lines to list of records to be returned
-        if len(refunds) > 0:
-            credit = self.env['account.move.line'].search([('full_reconcile_id', 'in', refunds)]).filtered(lambda rec: rec.move_id.move_type == 'in_refund')
-            for partial in credit.matched_credit_ids:
-                invoice_partials.append((partial, partial.debit_amount_currency, partial.debit_move_id))
-        if len(credits) > 0:
-            debit = self.env['account.move.line'].search([('full_reconcile_id', 'in', credits)]).filtered(lambda rec: rec.move_id.move_type == 'out_refund')
-            for partial in debit.matched_debit_ids:
-                invoice_partials.append((partial, partial.credit_amount_currency, partial.credit_move_id))
+
         return invoice_partials
 
     # Modified to include credit note information on bill report
