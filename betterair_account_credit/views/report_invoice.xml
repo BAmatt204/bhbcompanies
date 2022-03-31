@@ -17,9 +17,7 @@
                                     <t t-set="payments_vals" t-value="o.sudo()._get_reconciled_info_JSON_values()"/>	
                                     <t t-foreach="payments_vals" t-as="payment_vals">
                                         <tr>
-                                            <td class="border-none">
-                                                <span t-esc="payment_vals['move_ref']"/>
-                                            </td>
+                                            <td class="border-none"></td>
                                             <td class="border-none">
                                                 <span t-esc="payment_vals['move_name']"/>
                                             </td>

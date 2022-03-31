@@ -18,7 +18,7 @@ class AccountPayment(models.Model):
         """
         self.ensure_one()
 
-        def prepare_vals(invoice, partials, amount=0):
+        def prepare_vals(invoice, partials):
             number = ' - '.join([invoice.name, invoice.ref] if invoice.ref else [invoice.name])
 
             if invoice.is_outbound():
@@ -32,12 +32,10 @@ class AccountPayment(models.Model):
                 amount_residual_str = '-'
             else:
                 amount_residual_str = formatLang(self.env, invoice_sign * invoice.amount_residual, currency_obj=invoice.currency_id)
-            if amount == 0:
-                amount = invoice.amount_total
             return {
                 'due_date': format_date(self.env, invoice.invoice_date_due),
                 'number': number,
-                'amount_total': formatLang(self.env, invoice_sign * amount, currency_obj=invoice.currency_id),
+                'amount_total': formatLang(self.env, invoice_sign * invoice.amount_total, currency_obj=invoice.currency_id),
                 'amount_residual': amount_residual_str,
                 'amount_paid': formatLang(self.env, invoice_sign * sum(partials.mapped(partial_field)), currency_obj=self.currency_id),
                 'currency': invoice.currency_id,
@@ -87,7 +85,9 @@ class AccountPayment(models.Model):
                 for invoice, partials in invoice_map.items():
                     if invoice.move_type == 'in_refund' and invoice.state == 'posted':
                         amount = amount_map[invoice]
-                        stub_lines += [prepare_vals(invoice, partials, amount)]
+                        stub_line = prepare_vals(invoice, partials)
+                        stub_line['amount_paid'] = formatLang(self.env, -amount, currency_obj=self.currency_id)
+                        stub_lines += [stub_line]
 
         # Crop the stub lines or split them on multiple pages
         if not self.company_id.account_check_printing_multi_stub:
