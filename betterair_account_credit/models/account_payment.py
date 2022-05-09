@@ -45,6 +45,9 @@ class AccountPayment(models.Model):
         term_lines = self.line_ids.filtered(lambda line: line.account_id.internal_type in ('receivable', 'payable'))
         invoices = (term_lines.matched_debit_ids.debit_move_id.move_id + term_lines.matched_credit_ids.credit_move_id.move_id)\
             .filtered(lambda x: x.is_outbound())
+        _logger.info("\n")
+        _logger.info("\n")
+        _logger.info(invoices)
         credits = self.env['account.move']
         amount_map = {}
         for inv in invoices:
@@ -64,6 +67,9 @@ class AccountPayment(models.Model):
             invoice = partial.credit_move_id.move_id
             if invoice in invoice_map:
                 invoice_map[invoice] |= partial
+        _logger.info(invoice_map)
+        _logger.info("\n")
+        _logger.info("\n")
 
         # Prepare stub_lines.
         if 'out_refund' in invoices.mapped('move_type'):
@@ -71,6 +77,9 @@ class AccountPayment(models.Model):
             stub_lines += [prepare_vals(invoice, partials)
                            for invoice, partials in invoice_map.items()
                            if invoice.move_type == 'in_invoice']
+            stub_lines += [prepare_vals(invoice, partials)
+                           for invoice, partials in invoice_map.items()
+                           if invoice.move_type == 'out_invoice']
             stub_lines += [{'header': True, 'name': "Refund"}]
             stub_lines += [prepare_vals(invoice, partials)
                            for invoice, partials in invoice_map.items()
