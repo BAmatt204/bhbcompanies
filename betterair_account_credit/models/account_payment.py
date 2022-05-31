@@ -71,6 +71,9 @@ class AccountPayment(models.Model):
             stub_lines += [prepare_vals(invoice, partials)
                            for invoice, partials in invoice_map.items()
                            if invoice.move_type == 'in_invoice']
+            stub_lines += [prepare_vals(invoice, partials)
+                           for invoice, partials in invoice_map.items()
+                           if invoice.move_type == 'out_invoice']
             stub_lines += [{'header': True, 'name': "Refund"}]
             stub_lines += [prepare_vals(invoice, partials)
                            for invoice, partials in invoice_map.items()
