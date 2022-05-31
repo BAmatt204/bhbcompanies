@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <template id="report_invoice_document_inherit_betterair" inherit_id="account.report_invoice_document">
+            <xpath expr="//div[@id='total']" position="replace">
+                <div id="total" class="row">
+                    <div t-attf-class="#{'col-6' if report_type != 'html' else 'col-sm-7 col-md-6'} ml-auto">
+                        <table class="table table-sm outside" style="page-break-inside: avoid;">
+
+                            <!--Tax totals-->
+                            <t t-set="tax_totals" t-value="json.loads(o.tax_totals_json)"/>
+                            <t t-call="betterair_account_credit.document_tax_totals_betterair"/>
+
+                            <!--Payments-->
+                            <t t-if="print_with_payments">	
+                                <t t-if="o.payment_state != 'invoicing_legacy'">	
+                                    <t t-set="payments_vals" t-value="o.sudo()._get_reconciled_info_JSON_values()"/>	
+                                    <t t-foreach="payments_vals" t-as="payment_vals">
+                                        <tr>
+                                            <td class="border-none"></td>
+                                            <td class="border-none">
+                                                <span t-esc="payment_vals['move_name']"/>
+                                            </td>
+                                            <td>
+                                                <i class="oe_form_field text-right oe_payment_label">Paid on <t t-esc="payment_vals['date']" t-options='{"widget": "date"}'/></i>
+                                            </td>
+                                            <td class="text-right">
+                                                <span t-esc="payment_vals['amount']" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            </td>
+                                        </tr>
+                                    </t>	
+                                    <t t-if="len(payments_vals) > 0">	
+                                        <tr>
+                                            <td class="border-none"></td>
+                                            <td class="border-none"></td>
+                                            <td class="border-black-mfg"><strong>Amount Due</strong></td>
+                                            <td class="text-right border-black-mfg">
+                                                <span t-field="o.amount_residual"/>
+                                            </td>
+                                        </tr>
+                                    </t>	
+                                </t>	
+                            </t>
+                        </table>
+                    </div>
+                </div>
+            </xpath>
+        </template>
+        
+        <template id="document_tax_totals_betterair">
+            <t t-foreach="tax_totals['subtotals']" t-as="subtotal">
+                <tr>
+                    <td class="border-none"></td>
+                    <td class="border-none"></td>
+                    <td class="border-black-mfg"><strong t-esc="subtotal['name']"/></td>
+
+                    <td class="border-black-mfg text-right">
+                        <span
+                            t-att-class="oe_subtotal_footer_separator"
+                            t-esc="subtotal['formatted_amount']"
+                        />
+                    </td>
+                </tr>
+
+                <t t-set="subtotal_to_show" t-value="subtotal['name']"/>
+                <t t-call="betterair_account_credit.tax_groups_totals_betterair"/>
+            </t>
+
+            <!--Total amount with all taxes-->
+            <tr>
+                <td class="border-none"></td>
+                <td class="border-none"></td>
+                <td class="border-black-mfg"><strong>Total</strong></td>
+                <td class="border-black-mfg text-right">
+                    <span t-esc="tax_totals['formatted_amount_total']"/>
+                </td>
+            </tr>
+        </template>
+        
+        <template id="tax_groups_totals_betterair">
+            <t t-foreach="tax_totals['groups_by_subtotal'][subtotal_to_show]" t-as="amount_by_group">
+                <tr>
+                    <td class="border-none"></td>
+                    <td class="border-none"></td>
+                    <t t-if="len(tax_totals['groups_by_subtotal'][subtotal_to_show]) > 1">
+                        <td>
+                            <span t-esc="amount_by_group['tax_group_name']"/>
+                            <span class="text-nowrap"> on
+                                <t t-esc="amount_by_group['formatted_tax_group_base_amount']"/>
+                            </span>
+                        </td>
+                        <td class="text-right o_price_total">
+                            <span class="text-nowrap" t-esc="amount_by_group['formatted_tax_group_amount']"/>
+                        </td>
+                    </t>
+                    <t t-else="">
+                        <td><span class="text-nowrap" t-esc="amount_by_group['tax_group_name']"/></td>
+                        <td class="text-right o_price_total">
+                            <span class="text-nowrap" t-esc="amount_by_group['formatted_tax_group_amount']" />
+                        </td>
+                    </t>
+                </tr>
+            </t>
+        </template>
+    </data>
+</odoo>
