@@ -44,7 +44,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr t-foreach="o.move_id._get_reconciled_invoices_partials()" t-as="rec">
+                            <tr t-foreach="o.move_id._get_reconciled_invoices_partials_custom()" t-as="rec">
                                 <t t-set="amount" t-value="rec[1]"/>
                                 <t t-set="inv" t-value="rec[2].move_id"/>
                                 <t t-if="inv.move_type == 'in_invoice' or inv.move_type == 'out_invoice'">
@@ -56,12 +56,12 @@
                                     <td class="text-right"><span t-field="inv.amount_residual"/></td>
                                 </t>
                             </tr>
-                            <tr t-att-class="'bg-200 font-weight-bold o_line_section'">
+                            <tr t-att-class="'bg-200 font-weight-bold o_line_section'" t-if="o.has_credit">
                                 <td colspan="99">
                                     <span>Credit Summary</span>
                                 </td>
                             </tr>
-                            <tr t-foreach="o.move_id._get_reconciled_invoices_partials()" t-as="rec">
+                            <tr t-foreach="o.move_id._get_reconciled_invoices_partials_custom()" t-as="rec">
                                 <t t-set="amount" t-value="rec[1]"/>
                                 <t t-set="inv" t-value="rec[2].move_id"/>
                                 <t t-if="inv.move_type == 'in_refund' or inv.move_type == 'out_refund'">
