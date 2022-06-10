@@ -11,6 +11,17 @@ _logger = logging.getLogger(__name__)
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
+    has_credit = fields.Boolean(string='Has credit invoice',compute='_compute_credit')
+
+    def _compute_credit(self):
+        for rec in self:
+            credit = False
+            partial = rec.move_id._get_reconciled_invoices_partials()
+            credit_inv = [cred for cred in partial if cred[2].move_id.move_type in ['in_refund','out_refund']]
+            if len(credit_inv) > 0:
+                credit = True 
+            rec.has_credit = credit
+
     # Modified to allow credit to show on printed check document
     def _check_make_stub_pages(self):
         """ The stub is the summary of paid invoices. It may spill on several pages, in which case only the check on
@@ -167,6 +178,7 @@ class AccountPayment(models.Model):
                 # Instead of browse, search through moves to get specific invoices and associated credit notes
                 pay.reconciled_invoice_ids += self.env['account.move'].browse(res.get('invoice_ids', []))
                 for invoice in pay.reconciled_invoice_ids:
+                    
                     for partial, amount, counterpart_line in invoice._get_reconciled_invoices_partials():
                         if counterpart_line.move_id and counterpart_line.move_id.move_type == 'out_refund':
                             invoices += counterpart_line.move_id

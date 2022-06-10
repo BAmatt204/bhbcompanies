@@ -12,7 +12,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     # Modified to include credit note information on payment reciept and account.move report
-    def _get_reconciled_invoices_partials(self):
+    def _get_reconciled_invoices_partials_custom(self):
         ''' Helper to retrieve the details about reconciled invoices.
         :return A list of tuple (partial, amount, invoice_line).
         '''
@@ -23,10 +23,12 @@ class AccountMove(models.Model):
         credits = []
         refunds = []
 
+        
         for partial in pay_term_lines.matched_debit_ids:
             invoice_partials.append((partial, partial.credit_amount_currency, partial.debit_move_id))
             if self.move_type == 'entry':
                 invoice_partials += partial.debit_move_id.move_id._get_reconciled_invoices_partials()
+
             credits.append(partial.full_reconcile_id.id)
         for partial in pay_term_lines.matched_credit_ids:
             invoice_partials.append((partial, partial.debit_amount_currency, partial.credit_move_id))
